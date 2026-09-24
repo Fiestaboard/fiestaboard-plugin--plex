@@ -1,0 +1,360 @@
+{
+  "id": "plex",
+  "name": "Plex Now Playing",
+  "version": "1.0.0",
+  "description": "Show what's playing on your Plex Media Server: movies, TV episodes and music, laid out to fit any board",
+  "author": "FiestaBoard Team",
+  "repository": "https://github.com/Fiestaboard/fiestaboard-plugin--plex",
+  "documentation": "README.md",
+  "icon": "tv",
+  "category": "entertainment",
+  "min_refresh_seconds": 10,
+  "settings_schema": {
+    "type": "object",
+    "properties": {
+      "enabled": {
+        "type": "boolean",
+        "title": "Enable Plex Now Playing",
+        "default": false
+      },
+      "server_url": {
+        "type": "string",
+        "title": "Plex Server URL",
+        "description": "Address of your Plex Media Server, e.g. http://192.168.1.100:32400"
+      },
+      "token": {
+        "type": "string",
+        "title": "Plex Token",
+        "description": "Your X-Plex-Token (see the setup guide for how to find it)",
+        "ui:widget": "password"
+      },
+      "plex_user": {
+        "type": "string",
+        "title": "Plex User (optional)",
+        "description": "Only show streams from this Plex user. Leave empty to show anyone's."
+      },
+      "show_accents": {
+        "type": "boolean",
+        "title": "Plex yellow accents",
+        "description": "Frame the year or season/episode line with two yellow tiles on each side",
+        "default": true
+      },
+      "refresh_seconds": {
+        "type": "integer",
+        "title": "Refresh Interval (seconds)",
+        "description": "How often to ask Plex what's playing",
+        "default": 30,
+        "minimum": 10,
+        "maximum": 600
+      }
+    },
+    "required": [
+      "server_url",
+      "token"
+    ]
+  },
+  "env_vars": [
+    {
+      "name": "PLEX_URL",
+      "required": false,
+      "description": "Plex server URL (alternative to the UI setting)"
+    },
+    {
+      "name": "PLEX_TOKEN",
+      "required": false,
+      "description": "Plex token (alternative to the UI setting)"
+    }
+  ],
+  "variables": {
+    "groups": {
+      "display": {
+        "label": "Display Lines"
+      },
+      "media": {
+        "label": "Media"
+      },
+      "playback": {
+        "label": "Playback"
+      }
+    },
+    "simple": {
+      "line_1": {
+        "description": "First display line, laid out for this board's width (movie title, show, or track)",
+        "type": "string",
+        "max_length": 22,
+        "group": "display",
+        "example": "Breaking Bad"
+      },
+      "line_2": {
+        "description": "Second display line (title overflow, season/episode, or artist)",
+        "type": "string",
+        "max_length": 22,
+        "group": "display",
+        "example": "S05 E14"
+      },
+      "line_3": {
+        "description": "Third display line (year, episode title, season/episode, or album)",
+        "type": "string",
+        "max_length": 22,
+        "group": "display",
+        "example": "Ozymandias"
+      },
+      "title": {
+        "description": "Title of the movie, episode, or track",
+        "type": "string",
+        "max_length": 22,
+        "group": "media",
+        "example": "Ozymandias"
+      },
+      "year": {
+        "description": "Release year",
+        "type": "number",
+        "max_length": 4,
+        "group": "media",
+        "example": "2013"
+      },
+      "show": {
+        "description": "TV show name (episodes only)",
+        "type": "string",
+        "max_length": 22,
+        "group": "media",
+        "example": "Breaking Bad"
+      },
+      "season_episode": {
+        "description": "Season and episode (episodes only)",
+        "type": "string",
+        "max_length": 7,
+        "group": "media",
+        "example": "S05 E14"
+      },
+      "artist": {
+        "description": "Artist (music only)",
+        "type": "string",
+        "max_length": 22,
+        "group": "media",
+        "example": "Daft Punk"
+      },
+      "album": {
+        "description": "Album (music only)",
+        "type": "string",
+        "max_length": 22,
+        "group": "media",
+        "example": "Discovery"
+      },
+      "media_type": {
+        "description": "Movie, Episode, Track, or Clip",
+        "type": "string",
+        "max_length": 7,
+        "group": "media",
+        "example": "Episode"
+      },
+      "state": {
+        "description": "Playing, Paused, Buffering, or Idle",
+        "type": "string",
+        "max_length": 9,
+        "group": "playback",
+        "example": "Playing"
+      },
+      "is_playing": {
+        "description": "Whether the featured stream is playing (not paused or idle)",
+        "type": "boolean",
+        "group": "playback",
+        "example": "true"
+      },
+      "user": {
+        "description": "Plex user watching or listening",
+        "type": "string",
+        "max_length": 22,
+        "group": "playback",
+        "example": "Alex"
+      },
+      "player": {
+        "description": "Device playing the stream",
+        "type": "string",
+        "max_length": 22,
+        "group": "playback",
+        "example": "Living Room TV"
+      },
+      "progress_percent": {
+        "description": "How far through the item playback is (0-100)",
+        "type": "number",
+        "max_length": 3,
+        "group": "playback",
+        "example": "64"
+      },
+      "minutes_left": {
+        "description": "Minutes until the item finishes",
+        "type": "number",
+        "max_length": 3,
+        "group": "playback",
+        "example": "18"
+      },
+      "stream_count": {
+        "description": "Number of active streams (after the Plex User filter)",
+        "type": "number",
+        "max_length": 2,
+        "group": "playback",
+        "example": "2"
+      }
+    },
+    "arrays": {
+      "sessions": {
+        "label_field": "title",
+        "item_fields": [
+          "state",
+          "media_type",
+          "title",
+          "year",
+          "show",
+          "season_episode",
+          "artist",
+          "album",
+          "user",
+          "player",
+          "progress_percent",
+          "minutes_left"
+        ]
+      }
+    }
+  },
+  "max_lengths": {
+    "sessions.*.state": 9,
+    "sessions.*.media_type": 7,
+    "sessions.*.title": 22,
+    "sessions.*.year": 4,
+    "sessions.*.show": 22,
+    "sessions.*.season_episode": 7,
+    "sessions.*.artist": 22,
+    "sessions.*.album": 22,
+    "sessions.*.user": 22,
+    "sessions.*.player": 22,
+    "sessions.*.progress_percent": 3,
+    "sessions.*.minutes_left": 3
+  },
+  "color_rules_schema": {
+    "state": {
+      "type": "exact",
+      "description": "Color based on playback state",
+      "default_rules": [
+        {
+          "condition": "==",
+          "value": "Playing",
+          "color": "green"
+        },
+        {
+          "condition": "==",
+          "value": "Paused",
+          "color": "yellow"
+        },
+        {
+          "condition": "==",
+          "value": "Buffering",
+          "color": "orange"
+        }
+      ]
+    }
+  },
+  "fiestaboard_version": ">=2.10.0",
+  "teaser": "{65} BREAKING BAD",
+  "previews": [
+    {
+      "device_type": "flagship",
+      "rows": [
+        "      {66} PLAYING",
+        "     BREAKING BAD",
+        "    {65}{65} S05 E14 {65}{65}",
+        "      OZYMANDIAS",
+        "",
+        "    LIVING ROOM TV"
+      ]
+    },
+    {
+      "device_type": "note",
+      "rows": [
+        " BREAKING BAD",
+        " {65}{65} S05 E14 {65}{65}",
+        "  OZYMANDIAS"
+      ]
+    },
+    {
+      "label": "Note Array (2 wide)",
+      "device_type": "note_array",
+      "notes_wide": 2,
+      "notes_tall": 1,
+      "rows": [
+        "  THE MARVELOUS MRS. MAISEL",
+        "        {65}{65} S01 E01 {65}{65}",
+        "            PILOT"
+      ]
+    }
+  ],
+  "screenshots": [
+    {
+      "src": "docs/board-display.png",
+      "alt": "Plex Now Playing displayed on a Vestaboard",
+      "caption": "Show what's playing on your Plex Media Server: movies, TV episodes and music, laid out to fit any board",
+      "primary": true
+    }
+  ],
+  "demo": {
+    "flagship": {
+      "name": "Plex Now Playing Demo",
+      "template": [
+        "{{plex.state}}",
+        "{{plex.line_1}}",
+        "{{plex.line_2}}",
+        "{{plex.line_3}}",
+        "",
+        "{{plex.player}}"
+      ],
+      "line_metadata": [
+        {
+          "alignment": "center",
+          "wrap": false
+        },
+        {
+          "alignment": "center",
+          "wrap": false
+        },
+        {
+          "alignment": "center",
+          "wrap": false
+        },
+        {
+          "alignment": "center",
+          "wrap": false
+        },
+        {
+          "alignment": "center",
+          "wrap": false
+        },
+        {
+          "alignment": "center",
+          "wrap": false
+        }
+      ]
+    },
+    "note": {
+      "name": "Plex Now Playing (Note)",
+      "template": [
+        "{{plex.line_1}}",
+        "{{plex.line_2}}",
+        "{{plex.line_3}}"
+      ],
+      "line_metadata": [
+        {
+          "alignment": "center",
+          "wrap": false
+        },
+        {
+          "alignment": "center",
+          "wrap": false
+        },
+        {
+          "alignment": "center",
+          "wrap": false
+        }
+      ]
+    }
+  }
+}
