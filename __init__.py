@@ -1,8 +1,10 @@
 """Plex Now Playing plugin for FiestaBoard.
 
 Polls a Plex Media Server's active sessions and exposes what is playing —
-movies, TV episodes and music — as template variables, plus three
-ready-made display lines laid out for the board being rendered.
+movies, TV episodes and music — as template variables, plus a ready-made
+board-shaped rendering: three lines for the featured session, and, on
+boards with rows to spare, more of the active session list and playback
+detail.
 """
 
 import logging
@@ -18,6 +20,7 @@ from src.plugins.base import PluginBase, PluginResult
 logger = logging.getLogger(__name__)
 
 DEFAULT_COLS = 22
+DEFAULT_ROWS = 6
 ACCENT = "{65}{65}"  # two yellow tiles, Plex's brand colour
 REQUEST_TIMEOUT = 10
 
@@ -104,13 +107,49 @@ def parse_session(item: Dict[str, Any]) -> Dict[str, Any]:
     return session
 
 
-def layout_lines(session: Optional[Dict[str, Any]], cols: int, accents: bool) -> List[str]:
-    """Three display lines for a board *cols* tiles wide.
+def session_summary(session: Dict[str, Any]) -> str:
+    """One-line summary of a *secondary* session, before width fitting."""
+    media_type = session["media_type"]
+    if media_type == "Episode":
+        subject = session["show"] or session["title"]
+    elif media_type == "Track":
+        subject = f"{session['artist']} - {session['title']}" if session["artist"] else session["title"]
+    else:
+        subject = session["title"]
+    who = session["user"] or session["player"]
+    return f"{subject} ({who})" if who else subject
+
+
+def playback_detail_lines(session: Dict[str, Any]) -> List[str]:
+    """Extra detail about the featured *session*, used once other sessions are shown."""
+    lines = []
+    if session.get("player"):
+        lines.append(session["player"])
+    if session.get("minutes_left"):
+        lines.append(f"{session['minutes_left']}m left")
+    return lines
+
+
+def layout_lines(
+    session: Optional[Dict[str, Any]],
+    cols: int,
+    accents: bool,
+    rows: int = 3,
+    others: Optional[List[Dict[str, Any]]] = None,
+) -> List[str]:
+    """Display lines for a board *cols* tiles wide and *rows* tiles tall.
+
+    The featured session always gets the first three lines:
 
     Movies:   title over up to two lines, then the year.
     Episodes: show / season+episode / episode title when the show fits one
               line, otherwise the show over two lines, then season+episode.
     Music:    the same shape as episodes with track / artist / album.
+
+    Rows beyond those three (whenever the board has them) are filled, in
+    priority order, with other active sessions and then playback detail for
+    the featured one -- never more than *rows* lines are returned, and never
+    fewer just because there was nothing left to add.
     """
     if session is None:
         return ["", "Nothing playing", ""]
@@ -128,12 +167,31 @@ def layout_lines(session: Optional[Dict[str, Any]], cols: int, accents: bool) ->
     else:
         line_1, line_2 = wrap_two_lines(session["title"], cols)
         year = accent(str(session["year"])) if media_type == "Movie" else ""
-        return [line_1, line_2, year]
+        primary = [line_1, line_2, year]
+        return primary + _extra_lines(session, others, cols, rows - len(primary))
 
     if len(top) <= cols:
-        return [top, middle, ellipsize(bottom, cols)]
-    line_1, line_2 = wrap_two_lines(top, cols)
-    return [line_1, line_2, middle]
+        bottom_line = ellipsize(bottom, cols)
+        middle_line = ellipsize(middle, cols) if media_type == "Track" else middle
+        primary = [top, middle_line, bottom_line]
+    else:
+        line_1, line_2 = wrap_two_lines(top, cols)
+        middle_line = ellipsize(middle, cols) if media_type == "Track" else middle
+        primary = [line_1, line_2, middle_line]
+    return primary + _extra_lines(session, others, cols, rows - len(primary))
+
+
+def _extra_lines(
+    session: Dict[str, Any], others: Optional[List[Dict[str, Any]]], cols: int, budget: int
+) -> List[str]:
+    """Up to *budget* more lines: other active sessions first, then playback detail."""
+    if budget <= 0:
+        return []
+    extra = [ellipsize(session_summary(other), cols) for other in (others or [])[:budget]]
+    remaining = budget - len(extra)
+    if remaining > 0:
+        extra += [ellipsize(text, cols) for text in playback_detail_lines(session)[:remaining]]
+    return extra
 
 
 def pick_primary(sessions: List[Dict[str, Any]]) -> Dict[str, Any]:
@@ -210,9 +268,11 @@ class PlexPlugin(PluginBase):
             sessions = [s for s in sessions if s["user"].lower() == plex_user]
 
         primary = pick_primary(sessions) if sessions else None
+        others = [s for s in sessions if s is not primary]
         board = getattr(self, "board", None)
         cols = board.cols if board else DEFAULT_COLS
-        lines = layout_lines(primary, cols, self.config.get("show_accents", True))
+        rows = board.rows if board else DEFAULT_ROWS
+        lines = layout_lines(primary, cols, self.config.get("show_accents", True), rows=rows, others=others)
 
         data: Dict[str, Any] = dict(primary) if primary else {
             "state": "Idle",
@@ -238,7 +298,7 @@ class PlexPlugin(PluginBase):
                 "sessions": sessions,
             }
         )
-        return PluginResult(available=True, data=data)
+        return PluginResult(available=True, data=data, formatted_lines=lines)
 
 
 # Export the plugin class
