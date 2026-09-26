@@ -1,7 +1,7 @@
 {
   "id": "plex",
   "name": "Plex Now Playing",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Show what's playing on your Plex Media Server: movies, TV episodes and music, laid out to fit any board",
   "author": "FiestaBoard Team",
   "repository": "https://github.com/Fiestaboard/fiestaboard-plugin--plex",
@@ -102,7 +102,6 @@
       "title": {
         "description": "Title of the movie, episode, or track",
         "type": "string",
-        "max_length": 22,
         "group": "media",
         "example": "Ozymandias"
       },
@@ -116,7 +115,6 @@
       "show": {
         "description": "TV show name (episodes only)",
         "type": "string",
-        "max_length": 22,
         "group": "media",
         "example": "Breaking Bad"
       },
@@ -130,14 +128,12 @@
       "artist": {
         "description": "Artist (music only)",
         "type": "string",
-        "max_length": 22,
         "group": "media",
         "example": "Daft Punk"
       },
       "album": {
         "description": "Album (music only)",
         "type": "string",
-        "max_length": 22,
         "group": "media",
         "example": "Discovery"
       },
@@ -164,14 +160,12 @@
       "user": {
         "description": "Plex user watching or listening",
         "type": "string",
-        "max_length": 22,
         "group": "playback",
         "example": "Alex"
       },
       "player": {
         "description": "Device playing the stream",
         "type": "string",
-        "max_length": 22,
         "group": "playback",
         "example": "Living Room TV"
       },
@@ -220,14 +214,8 @@
   "max_lengths": {
     "sessions.*.state": 9,
     "sessions.*.media_type": 7,
-    "sessions.*.title": 22,
     "sessions.*.year": 4,
-    "sessions.*.show": 22,
     "sessions.*.season_episode": 7,
-    "sessions.*.artist": 22,
-    "sessions.*.album": 22,
-    "sessions.*.user": 22,
-    "sessions.*.player": 22,
     "sessions.*.progress_percent": 3,
     "sessions.*.minutes_left": 3
   },
@@ -285,6 +273,17 @@
         "  THE MARVELOUS MRS. MAISEL",
         "        {65}{65} S01 E01 {65}{65}",
         "            PILOT"
+      ]
+    },
+    {
+      "label": "Note Array (tall)",
+      "device_type": "note_array",
+      "notes_wide": 1,
+      "notes_tall": 4,
+      "rows": [
+        " BREAKING BAD",
+        " {65}{65} S05 E14 {65}{65}",
+        "  OZYMANDIAS"
       ]
     }
   ],

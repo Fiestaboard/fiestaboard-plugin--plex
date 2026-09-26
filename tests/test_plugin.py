@@ -15,9 +15,11 @@ from plugins.plex import (
     layout_lines,
     parse_session,
     season_episode,
+    session_summary,
     wrap_two_lines,
 )
 from src.devices import BoardContext
+from src.plugins.geometry_conformance import assert_board_conformance
 from src.templates.engine import TemplateEngine
 
 MANIFEST = json.loads((Path(__file__).resolve().parent.parent / "manifest.json").read_text())
@@ -28,6 +30,7 @@ DECLARED_SESSION_FIELDS = set(MANIFEST["variables"]["arrays"]["sessions"]["item_
 NOTE = BoardContext("note", rows=3, cols=15)
 FLAGSHIP = BoardContext("flagship", rows=6, cols=22)
 NOTE_ARRAY_2_WIDE = BoardContext("note_array", rows=3, cols=30)
+NOTE_ARRAY_1_TALL = BoardContext("note_array", rows=12, cols=15)
 
 Y2 = "{65}{65}"
 
@@ -291,6 +294,68 @@ class TestLayoutLines:
     def test_accents_dropped_when_they_do_not_fit(self):
         assert layout_lines(parse_session(episode_item()), 12, True)[1] == "S05 E14"
 
+    def test_track_long_artist_is_ellipsized(self):
+        # Regression: the artist ("middle") used to be returned verbatim while
+        # the album ("bottom") was correctly ellipsized -- an artist longer
+        # than the board produced a row wider than the board.
+        session = parse_session(track_item(originalTitle="The Alan Parsons Project Presents"))
+        middle = layout_lines(session, 15, True)[1]
+        assert middle == ellipsize("The Alan Parsons Project Presents", 15)
+        assert len(middle) <= 15
+
+    def test_rows_beyond_three_are_ignored_by_default(self):
+        """The 3-arg call sites throughout this file keep working unchanged."""
+        assert len(layout_lines(parse_session(episode_item()), 15, True)) == 3
+
+    def test_extra_rows_list_other_sessions_then_playback_detail(self):
+        primary = parse_session(episode_item())
+        others = [parse_session(movie_item(title="Dune", User={"title": "Sam"}))]
+        lines = layout_lines(primary, 15, True, rows=6, others=others)
+        assert lines == [
+            "Breaking Bad",
+            f"{Y2} S05 E14 {Y2}",
+            "Ozymandias",
+            "Dune (Sam)",
+            "Living Room TV",
+            "42m left",
+        ]
+
+    def test_extra_rows_never_exceed_the_board(self):
+        primary = parse_session(episode_item())
+        others = [parse_session(movie_item(title=f"Movie {i}")) for i in range(10)]
+        lines = layout_lines(primary, 15, True, rows=5, others=others)
+        assert len(lines) == 5
+
+    def test_no_spare_rows_returns_exactly_three_lines(self):
+        primary = parse_session(episode_item())
+        others = [parse_session(movie_item())]
+        lines = layout_lines(primary, 15, True, rows=3, others=others)
+        assert len(lines) == 3
+
+    def test_session_summary_movie(self):
+        session = parse_session(movie_item(title="Dune", User={"title": "Sam"}))
+        assert session_summary(session) == "Dune (Sam)"
+
+    def test_session_summary_episode_uses_show(self):
+        session = parse_session(episode_item(User={"title": "Alex"}))
+        assert session_summary(session) == "Breaking Bad (Alex)"
+
+    def test_session_summary_track_uses_artist_and_title(self):
+        session = parse_session(track_item(User={"title": "Sam"}))
+        assert session_summary(session) == "Daft Punk - One More Time (Sam)"
+
+    def test_session_summary_without_user_falls_back_to_player(self):
+        session = parse_session(movie_item(title="Dune", User={}, Player={"title": "Kitchen"}))
+        assert session_summary(session) == "Dune (Kitchen)"
+
+    def test_idle_ignores_extra_rows(self):
+        # No session to feature means nothing more to say, regardless of rows.
+        assert layout_lines(None, 15, True, rows=12, others=[parse_session(movie_item())]) == [
+            "",
+            "Nothing playing",
+            "",
+        ]
+
 
 class TestFetchData:
     def test_missing_config(self, monkeypatch):
@@ -390,6 +455,24 @@ class TestFetchData:
         result, _ = fetch(make_plugin(), item)
         assert (result.data["line_1"], result.data["line_2"]) == ("Everything Everywhere", "All at Once")
 
+    def test_formatted_lines_follow_the_board_height(self):
+        primary_item = episode_item()
+        secondary_item = movie_item(title="Dune", User={"title": "Sam"})
+        plugin = make_plugin()
+        on_note, _ = fetch(plugin, primary_item, secondary_item, board=NOTE)
+        on_tall, _ = fetch(plugin, primary_item, secondary_item, board=NOTE_ARRAY_1_TALL)
+        assert len(on_note.formatted_lines) == 3
+        assert len(on_tall.formatted_lines) > 3
+        assert "Dune (Sam)" in on_tall.formatted_lines
+        assert len(on_tall.formatted_lines) <= NOTE_ARRAY_1_TALL.rows
+
+    def test_no_board_uses_flagship_height(self):
+        primary_item = episode_item()
+        secondary_item = movie_item(title="Dune", User={"title": "Sam"})
+        result, _ = fetch(make_plugin(), primary_item, secondary_item)
+        assert len(result.formatted_lines) > 3
+        assert len(result.formatted_lines) <= 6  # flagship's 6 rows, the assumed default
+
     def test_unauthorized(self):
         with patch("plugins.plex.requests.get", return_value=sessions_response(status_code=401)):
             result = make_plugin().fetch_data()
@@ -449,9 +532,18 @@ def render(template_entry, data, board):
     return [line.rstrip() for line in text.split("\n")]
 
 
-def preview(device_type):
-    rows = next(p["rows"] for p in MANIFEST["previews"] if p["device_type"] == device_type)
-    return [row.upper() for row in rows]
+def preview(device_type, label=None):
+    """The literal rows of one manifest preview.
+
+    Two ``note_array`` entries exist (wide and tall), so ``label`` picks
+    between them; it is ignored for the single-entry device types.
+    """
+    match = next(
+        p
+        for p in MANIFEST["previews"]
+        if p["device_type"] == device_type and (label is None or p.get("label") == label)
+    )
+    return [row.upper() for row in match["rows"]]
 
 
 class TestRenderedBoards:
@@ -471,4 +563,41 @@ class TestRenderedBoards:
         item = episode_item(grandparentTitle="The Marvelous Mrs. Maisel", parentIndex=1, index=1, title="Pilot")
         result, _ = fetch(make_plugin(), item, board=NOTE_ARRAY_2_WIDE)
         rendered = render(MANIFEST["demo"]["note"], result.data, NOTE_ARRAY_2_WIDE)
-        assert [line.upper() for line in rendered] == preview("note_array")
+        assert [line.upper() for line in rendered] == preview("note_array", label="Note Array (2 wide)")
+
+    def test_note_template_on_tall_note_array_matches_preview(self):
+        # Same width as a Note (15 cols) but four notes tall (12 rows) --
+        # the "narrower than a Flagship, much taller" shape from the audit.
+        # The fixed-length "note" demo template only ever fills the first
+        # three rows; rows never longer than the board is proven separately
+        # by the plugin's own formatted_lines (see TestBoardConformance).
+        result, _ = fetch(make_plugin(), episode_item(), board=NOTE_ARRAY_1_TALL)
+        rendered = [line.upper() for line in render(MANIFEST["demo"]["note"], result.data, NOTE_ARRAY_1_TALL)]
+        expected = preview("note_array", label="Note Array (tall)")
+        assert rendered[: len(expected)] == expected
+        assert all(line == "" for line in rendered[len(expected) :])
+
+
+class TestBoardConformance:
+    """Shared conformance suite: the plugin must render on every board shape.
+
+    ``strict_growth=True`` because this plugin renders a session list --
+    other active streams fill the rows a shorter board has no room for, so a
+    taller board that leaves a full shorter board's content unrepeated must
+    show strictly more.
+    """
+
+    def test_renders_on_every_board_shape(self, monkeypatch):
+        items = [
+            episode_item(grandparentTitle="The Marvelous Mrs. Maisel", parentIndex=1, index=1, title="Pilot"),
+            movie_item(title="Dune", User={"title": "Sam"}, Player={"title": "Home Theater", "state": "paused"}),
+            track_item(title="Harder Better Faster Stronger", User={"title": "Jo"}),
+        ]
+        monkeypatch.setattr("plugins.plex.requests.get", lambda *args, **kwargs: sessions_response(*items))
+
+        assert_board_conformance(
+            make_plugin,
+            manifest=MANIFEST,
+            strict_growth=True,
+            require_note_array_preview=True,
+        )
