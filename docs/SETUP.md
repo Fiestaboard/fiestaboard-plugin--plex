@@ -8,23 +8,17 @@ Connect FiestaBoard to your Plex Media Server so your board shows what's playing
 
 **Prerequisites:**
 
-- A Plex Media Server that FiestaBoard can reach on your network
-- The server's address (usually `http://<server-ip>:32400`)
-- A Plex token (X-Plex-Token) for an account with access to the server
+- A Plex Media Server that FiestaBoard can reach
+- A Plex account with access to the server
+- FiestaBoard 9.9.0 or later for **Sign in with Plex** (on older versions, paste a token instead)
 
 ## Quick Setup
 
-1. **Find your Plex token**
-   1. Open Plex Web (app.plex.tv) and sign in with an account on your server.
-   2. Open any movie or episode in your library.
-   3. Click the **⋯** menu and choose **Get Info**, then **View XML**.
-   4. The XML opens in a new tab. Copy the value after `X-Plex-Token=` at the end of its address.
+1. **Enable** — In FiestaBoard, go to **Integrations**, find **Plex Now Playing**, and turn it on.
 
-   Treat the token like a password: it grants access to your Plex account.
+2. **Sign in** — In the plugin's settings, click **Sign in with Plex**. Plex's sign-in page opens in a new tab; sign in and approve **FiestaBoard**. The settings show you are connected once Plex confirms, usually within a few seconds.
 
-2. **Enable** — In FiestaBoard, go to **Integrations**, find **Plex Now Playing**, and turn it on.
-
-3. **Configure** — Enter your **Plex Server URL** (for example `http://192.168.1.100:32400`) and paste your **Plex Token**. Optionally set a **Plex User** to only show that person's streams.
+3. **Server (usually nothing to do)** — Leave **Plex Server URL** empty and the plugin finds your server through your Plex account, trying its home-network address first. If your account can reach several servers, enter the one you want in **Plex Server Name**. If the board cannot reach the server that way, enter its address in **Plex Server URL** (for example `http://192.168.1.100:32400`). Optionally set a **Plex User** to only show that person's streams.
 
 4. **Template** — Create a page from the plugin's demo, or add the display lines to your own page:
 
@@ -37,6 +31,20 @@ Connect FiestaBoard to your Plex Media Server so your board shows what's playing
    Center-align the lines for the classic look.
 
 5. **View** — Start playing something in Plex. The board updates on the next refresh (30 seconds by default).
+
+### Instead of signing in: paste a token
+
+This is how the plugin worked before 1.1.0, and it still does. A pasted token is used instead of the sign-in whenever it is set.
+
+1. **Find your Plex token**
+   1. Open Plex Web (app.plex.tv) and sign in with an account on your server.
+   2. Open any movie or episode in your library.
+   3. Click the **⋯** menu and choose **Get Info**, then **View XML**.
+   4. The XML opens in a new tab. Copy the value after `X-Plex-Token=` at the end of its address.
+
+   Treat the token like a password: it grants access to your Plex account.
+
+2. Paste it into **Plex Token**. **Plex Server URL** can stay empty, as above, or hold your server's address.
 
 ## Template Variables
 
@@ -65,8 +73,9 @@ Connect FiestaBoard to your Plex Media Server so your board shows what's playing
 
 | Setting | Required | Default | Description |
 |---------|----------|---------|-------------|
-| Plex Server URL | Yes | - | Your server's address, including the port |
-| Plex Token | Yes | - | Your X-Plex-Token |
+| Plex Server URL | No | - | Your server's address, including the port. Empty: found through your Plex account |
+| Plex Token | No | - | An X-Plex-Token, used instead of Sign in with Plex when set |
+| Plex Server Name | No | - | Which server to use when the URL is empty and your account has several |
 | Plex User | No | - | Only show streams from this Plex user (case-insensitive) |
 | Plex yellow accents | No | On | Frame the year or season/episode line with two yellow tiles on each side |
 | Refresh Interval | No | 30 seconds | How often to check Plex (10-600 seconds) |
@@ -85,6 +94,23 @@ Connect FiestaBoard to your Plex Media Server so your board shows what's playing
 - Check the URL includes the port (`:32400`) and the right protocol.
 - FiestaBoard must be able to reach the server. If FiestaBoard runs in Docker, use the server's LAN IP, not `localhost`.
 - Using `https://` with a plain IP address fails the certificate check. Use `http://` on your local network. If your server's **Secure connections** setting is **Required**, change it to **Preferred**.
+
+### "Sign in with Plex, or paste a Plex token, in the plugin settings"
+
+- Click **Sign in with Plex** in the settings, or paste a token.
+
+### "Plex stopped accepting the sign-in. Sign in with Plex again."
+
+- Plex refused the signed-in token, for example after **Sign out of all devices** or removing FiestaBoard from your Plex devices. Click **Sign in with Plex** again.
+
+### "No Plex server found on this Plex account" or "the board cannot reach it"
+
+- Make sure the server is signed in to the same Plex account (or shared with it) and online.
+- If the board still cannot reach it, enter the server's address in **Plex Server URL**.
+
+### "Could not find your Plex server through plex.tv"
+
+- The board could not reach plex.tv. Check its internet connection, or enter **Plex Server URL** to talk to the server directly.
 
 ### "Plex rejected the token (401 Unauthorized)"
 

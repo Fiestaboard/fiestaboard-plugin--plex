@@ -1,7 +1,7 @@
 {
   "id": "plex",
   "name": "Plex Now Playing",
-  "version": "1.0.1",
+  "version": "1.1.0",
   "description": "Show what's playing on your Plex Media Server: movies, TV episodes and music, laid out to fit any board",
   "author": "FiestaBoard Team",
   "repository": "https://github.com/Fiestaboard/fiestaboard-plugin--plex",
@@ -19,14 +19,19 @@
       },
       "server_url": {
         "type": "string",
-        "title": "Plex Server URL",
-        "description": "Address of your Plex Media Server, e.g. http://192.168.1.100:32400"
+        "title": "Plex Server URL (optional)",
+        "description": "Address of your Plex Media Server, e.g. http://192.168.1.100:32400. Leave empty to find it through your Plex account."
       },
       "token": {
         "type": "string",
-        "title": "Plex Token",
-        "description": "Your X-Plex-Token (see the setup guide for how to find it)",
+        "title": "Plex Token (optional)",
+        "description": "Paste an X-Plex-Token instead of signing in with Plex (see the setup guide). When set, it is used instead of the sign-in.",
         "ui:widget": "password"
+      },
+      "server_name": {
+        "type": "string",
+        "title": "Plex Server Name (optional)",
+        "description": "When your Plex account can reach more than one server and the Plex Server URL is empty, use the server with this name."
       },
       "plex_user": {
         "type": "string",
@@ -47,11 +52,14 @@
         "minimum": 10,
         "maximum": 600
       }
-    },
-    "required": [
-      "server_url",
-      "token"
-    ]
+    }
+  },
+  "oauth": {
+    "provider_name": "Plex",
+    "flows": [
+      "plex_pin"
+    ],
+    "plex_product": "FiestaBoard"
   },
   "env_vars": [
     {
@@ -242,7 +250,7 @@
       ]
     }
   },
-  "fiestaboard_version": ">=2.10.0",
+  "fiestaboard_version": ">=9.9.0",
   "teaser": "{65} BREAKING BAD",
   "previews": [
     {

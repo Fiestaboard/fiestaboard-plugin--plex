@@ -115,12 +115,11 @@ class TestValidateConfig:
     def test_valid_config(self):
         assert make_plugin().validate_config({"server_url": "http://plex.local:32400", "token": "t"}) == []
 
-    def test_missing_url_and_token(self, monkeypatch):
+    def test_url_and_token_optional(self, monkeypatch):
+        """Sign in with Plex supplies the token, and plex.tv finds the server."""
         monkeypatch.delenv("PLEX_URL", raising=False)
         monkeypatch.delenv("PLEX_TOKEN", raising=False)
-        errors = make_plugin().validate_config({})
-        assert "Plex server URL is required" in errors
-        assert "Plex token is required" in errors
+        assert make_plugin().validate_config({}) == []
 
     def test_url_without_scheme(self):
         errors = make_plugin().validate_config({"server_url": "192.168.1.100:32400", "token": "t"})
@@ -363,9 +362,10 @@ class TestFetchData:
         monkeypatch.delenv("PLEX_TOKEN", raising=False)
         plugin = PlexPlugin(manifest=MANIFEST)
         plugin.config = {}
+        plugin.get_oauth_token = lambda: None
         result = plugin.fetch_data()
         assert result.available is False
-        assert result.error == "Plex server URL or token not configured"
+        assert result.error == "Sign in with Plex, or paste a Plex token, in the plugin settings"
 
     def test_request(self):
         plugin = make_plugin(server_url="http://192.168.1.100:32400/")

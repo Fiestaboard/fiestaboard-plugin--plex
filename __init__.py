@@ -11,6 +11,7 @@ import logging
 import math
 import os
 import textwrap
+import uuid
 from typing import Any, Dict, List, Optional, Tuple
 
 import requests
@@ -23,6 +24,13 @@ DEFAULT_COLS = 22
 DEFAULT_ROWS = 6
 ACCENT = "{65}{65}"  # two yellow tiles, Plex's brand colour
 REQUEST_TIMEOUT = 10
+PROBE_TIMEOUT = 3
+PLEX_RESOURCES_URL = "https://plex.tv/api/v2/resources"
+
+NEEDS_TOKEN = "Sign in with Plex, or paste a Plex token, in the plugin settings"
+SIGN_IN_REJECTED = "Plex stopped accepting the sign-in. Sign in with Plex again."
+TOKEN_REJECTED = "Plex rejected the token (401 Unauthorized)"
+SET_SERVER_URL = "set the Plex Server URL in the plugin settings"
 
 STATE_LABELS = {
     "playing": "Playing",
@@ -199,8 +207,41 @@ def pick_primary(sessions: List[Dict[str, Any]]) -> Dict[str, Any]:
     return min(sessions, key=lambda s: STATE_PRIORITY.index(s["state"]))
 
 
+def candidate_uris(resource: Dict[str, Any]) -> List[str]:
+    """A server's connection addresses, best first: on the home network, then remote, then Plex's relay."""
+    connections = [c for c in resource.get("connections") or [] if isinstance(c, dict) and c.get("uri")]
+    connections.sort(key=lambda c: (bool(c.get("relay")), not c.get("local")))
+    return [c["uri"].rstrip("/") for c in connections]
+
+
+def pick_servers(resources: Any, server_name: str) -> List[Dict[str, Any]]:
+    """The Plex Media Servers in a plex.tv resources answer, owned ones first.
+
+    Raises LookupError when there is none (or none with *server_name*).
+    """
+    if not isinstance(resources, list):
+        raise ValueError("plex.tv gave an unexpected answer")
+    servers = [
+        r for r in resources if isinstance(r, dict) and "server" in str(r.get("provides") or "").split(",")
+    ]
+    if server_name:
+        servers = [s for s in servers if str(s.get("name") or "").strip().lower() == server_name.lower()]
+        if not servers:
+            raise LookupError(f"No Plex server named {server_name} on this Plex account")
+    if not servers:
+        raise LookupError(f"No Plex server found on this Plex account; {SET_SERVER_URL}")
+    servers.sort(key=lambda s: (not s.get("owned"), not s.get("presence", True)))
+    return servers
+
+
 class PlexPlugin(PluginBase):
     """Plex Now Playing plugin."""
+
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        super().__init__(*args, **kwargs)
+        self._client_identifier = str(uuid.uuid4())
+        # ((token, server_name), server_url, server_token) from the last plex.tv lookup
+        self._discovered: Optional[Tuple[Tuple[str, str], str, str]] = None
 
     @property
     def plugin_id(self) -> str:
@@ -215,49 +256,130 @@ class PlexPlugin(PluginBase):
         return (config.get("token") or os.getenv("PLEX_TOKEN", "")).strip()
 
     def validate_config(self, config: Dict[str, Any]) -> List[str]:
+        # Both are optional: Sign in with Plex supplies a token, and plex.tv finds the server.
         errors = []
 
         server_url = self._server_url(config)
-        if not server_url:
-            errors.append("Plex server URL is required")
-        elif not server_url.startswith(("http://", "https://")):
+        if server_url and not server_url.startswith(("http://", "https://")):
             errors.append("Plex server URL must start with http:// or https://")
-
-        if not self._token(config):
-            errors.append("Plex token is required")
 
         errors.extend(self._validate_refresh_seconds(config))
         return errors
 
-    def _fetch_sessions(self, server_url: str, token: str) -> List[Dict[str, Any]]:
+    def _signed_in_token(self) -> str:
+        """The token from Sign in with Plex, or "" (not signed in, or a core without sign-in)."""
+        getter = getattr(self, "get_oauth_token", None)
+        if not callable(getter):
+            return ""
+        try:
+            return (getter() or "").strip()
+        except Exception as e:  # never let the sign-in store break a fetch
+            logger.warning("Could not read the Plex sign-in: %s", e)
+            return ""
+
+    def _report_rejected(self) -> None:
+        report = getattr(self, "report_oauth_rejected", None)
+        if callable(report):
+            report()
+
+    def _headers(self, token: str) -> Dict[str, str]:
+        return {
+            "X-Plex-Token": token,
+            "X-Plex-Product": "FiestaBoard",
+            "X-Plex-Client-Identifier": self._client_identifier,
+            "Accept": "application/json",
+        }
+
+    def _reachable(self, uri: str, token: str) -> bool:
+        try:
+            return requests.get(f"{uri}/identity", headers=self._headers(token), timeout=PROBE_TIMEOUT).status_code == 200
+        except requests.exceptions.RequestException:
+            return False
+
+    def _discover_server(self, token: str) -> Tuple[str, str]:
+        """(server_url, server_token) for the account's server, found through plex.tv and cached."""
+        server_name = (self.config.get("server_name") or "").strip()
+        key = (token, server_name)
+        if self._discovered and self._discovered[0] == key:
+            return self._discovered[1], self._discovered[2]
+
         response = requests.get(
-            f"{server_url}/status/sessions",
-            headers={
-                "X-Plex-Token": token,
-                "X-Plex-Product": "FiestaBoard",
-                "Accept": "application/json",
-            },
+            PLEX_RESOURCES_URL,
+            params={"includeHttps": 1, "includeRelay": 1},
+            headers=self._headers(token),
             timeout=REQUEST_TIMEOUT,
         )
         if response.status_code == 401:
-            raise PermissionError("Plex rejected the token (401 Unauthorized)")
+            raise PermissionError(TOKEN_REJECTED)
+        response.raise_for_status()
+        for resource in pick_servers(response.json(), server_name):
+            server_token = resource.get("accessToken") or token
+            for uri in candidate_uris(resource):
+                if self._reachable(uri, server_token):
+                    self._discovered = (key, uri, server_token)
+                    return uri, server_token
+        raise LookupError(f"Found your Plex server but the board cannot reach it; {SET_SERVER_URL}")
+
+    def _fetch_sessions(self, server_url: str, token: str) -> List[Dict[str, Any]]:
+        response = requests.get(
+            f"{server_url}/status/sessions",
+            headers=self._headers(token),
+            timeout=REQUEST_TIMEOUT,
+        )
+        if response.status_code == 401:
+            raise PermissionError(TOKEN_REJECTED)
         response.raise_for_status()
         container = response.json().get("MediaContainer") or {}
         return container.get("Metadata") or []
 
+    def _rejected(self, signed_in: bool) -> PluginResult:
+        if signed_in:
+            self._report_rejected()
+            return PluginResult(available=False, error=SIGN_IN_REJECTED)
+        return PluginResult(available=False, error=TOKEN_REJECTED)
+
+    def _locate_server(self, token: str, signed_in: bool) -> Tuple[Optional[Tuple[str, str]], Optional[PluginResult]]:
+        """The server to ask (from settings, or found through plex.tv), or the result explaining why not."""
+        server_url = self._server_url(self.config)
+        if server_url:
+            return (server_url, token), None
+        try:
+            return self._discover_server(token), None
+        except PermissionError:
+            return None, self._rejected(signed_in)
+        except LookupError as e:
+            return None, PluginResult(available=False, error=str(e))
+        except (requests.exceptions.RequestException, ValueError) as e:
+            logger.warning("Could not look up the Plex server at plex.tv: %s", e)
+            return None, PluginResult(available=False, error=f"Could not find your Plex server through plex.tv: {e}")
+
     def fetch_data(self) -> PluginResult:
         """Fetch the active Plex sessions and build the template variables."""
-        server_url = self._server_url(self.config)
+        # A pasted token (or PLEX_TOKEN) wins over Sign in with Plex.
         token = self._token(self.config)
-        if not server_url or not token:
-            return PluginResult(available=False, error="Plex server URL or token not configured")
+        signed_in = False
+        if not token:
+            token = self._signed_in_token()
+            signed_in = bool(token)
+        if not token:
+            return PluginResult(available=False, error=NEEDS_TOKEN)
+
+        located, failure = self._locate_server(token, signed_in)
+        if failure:
+            return failure
+        server_url, server_token = located
 
         try:
-            items = self._fetch_sessions(server_url, token)
+            items = self._fetch_sessions(server_url, server_token)
         except requests.exceptions.RequestException as e:
+            self._discovered = None
             logger.warning("Could not reach Plex at %s: %s", server_url, e)
             return PluginResult(available=False, error=f"Could not reach Plex server: {e}")
-        except (PermissionError, ValueError) as e:
+        except PermissionError:
+            self._discovered = None
+            # Only the account token itself proves the sign-in is dead; a server's shared token can be revoked alone.
+            return self._rejected(signed_in and server_token == token)
+        except ValueError as e:
             logger.warning("Plex request failed: %s", e)
             return PluginResult(available=False, error=str(e))
 
