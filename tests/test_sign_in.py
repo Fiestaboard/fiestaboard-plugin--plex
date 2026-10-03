@@ -97,7 +97,7 @@ class TestManifest:
         assert provider.plex_product == "FiestaBoard"
 
     def test_requires_core_with_plex_pin(self):
-        assert MANIFEST["fiestaboard_version"] == ">=9.9.0"
+        assert MANIFEST["fiestaboard_version"] == ">=9.11.0"
 
     def test_existing_settings_keys_kept_and_optional(self):
         props = MANIFEST["settings_schema"]["properties"]

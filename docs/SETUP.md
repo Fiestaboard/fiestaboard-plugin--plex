@@ -10,7 +10,7 @@ Connect FiestaBoard to your Plex Media Server so your board shows what's playing
 
 - A Plex Media Server that FiestaBoard can reach
 - A Plex account with access to the server
-- FiestaBoard 9.9.0 or later for **Sign in with Plex** (on older versions, paste a token instead)
+- FiestaBoard 9.11.0 or later for **Sign in with Plex** (on older versions, paste a token instead)
 
 ## Quick Setup
 

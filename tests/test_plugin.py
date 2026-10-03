@@ -527,7 +527,10 @@ def render(template_entry, data, board):
     registry = Mock(get_manifest=Mock(return_value=SimpleNamespace(color_rules_schema=MANIFEST["color_rules_schema"])))
     with patch("src.templates.engine.get_plugin_registry", return_value=registry):
         engine = TemplateEngine()
-    engine._config_manager = Mock(get_color_rules=Mock(return_value=None))
+    engine._config_manager = Mock(
+        get_color_rules=Mock(return_value=None),  # cores before 9.10
+        get_effective_color_rules=Mock(return_value=None),  # 9.10+: per-instance rules
+    )
     notes_wide = board.cols // 15 if board.device_type == "note_array" else 1
     notes_tall = board.rows // 3 if board.device_type == "note_array" else 1
     text = engine.render_lines(

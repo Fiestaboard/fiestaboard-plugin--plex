@@ -250,7 +250,7 @@
       ]
     }
   },
-  "fiestaboard_version": ">=9.9.0",
+  "fiestaboard_version": ">=9.11.0",
   "teaser": "{65} BREAKING BAD",
   "previews": [
     {

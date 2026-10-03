@@ -107,7 +107,7 @@ Center all three lines:
 
 ### Sign in with Plex
 
-Requires FiestaBoard 9.9.0 or later. Click **Sign in with Plex** in the plugin's settings and approve FiestaBoard on Plex's page; nothing to copy. A pasted token (or `PLEX_TOKEN`) still works and takes priority over the sign-in. If Plex stops accepting the sign-in, the settings ask you to sign in again.
+Requires FiestaBoard 9.11.0 or later. Click **Sign in with Plex** in the plugin's settings and approve FiestaBoard on Plex's page; nothing to copy. A pasted token (or `PLEX_TOKEN`) still works and takes priority over the sign-in. If Plex stops accepting the sign-in, the settings ask you to sign in again.
 
 With no `server_url`, the plugin asks plex.tv for the servers on your account (`/api/v2/resources`), prefers one you own, and tries its home-network address first, then its remote address, then Plex's relay. This works with a pasted token too.
 
