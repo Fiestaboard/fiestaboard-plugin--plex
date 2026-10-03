@@ -283,12 +283,16 @@ class PlexPlugin(PluginBase):
             report()
 
     def _headers(self, token: str) -> Dict[str, str]:
+        """Headers for the Plex server: exactly what 1.0.x sent."""
         return {
             "X-Plex-Token": token,
             "X-Plex-Product": "FiestaBoard",
-            "X-Plex-Client-Identifier": self._client_identifier,
             "Accept": "application/json",
         }
+
+    def _plex_tv_headers(self, token: str) -> Dict[str, str]:
+        # plex.tv's v2 API needs a client identifier; the server does not, and would list each new one as a device.
+        return {**self._headers(token), "X-Plex-Client-Identifier": self._client_identifier}
 
     def _reachable(self, uri: str, token: str) -> bool:
         try:
@@ -306,7 +310,7 @@ class PlexPlugin(PluginBase):
         response = requests.get(
             PLEX_RESOURCES_URL,
             params={"includeHttps": 1, "includeRelay": 1},
-            headers=self._headers(token),
+            headers=self._plex_tv_headers(token),
             timeout=REQUEST_TIMEOUT,
         )
         if response.status_code == 401:

@@ -376,6 +376,15 @@ class TestFetchData:
         assert kwargs["headers"]["Accept"] == "application/json"
         assert kwargs["timeout"] == 10
 
+    def test_server_request_headers_unchanged(self):
+        """A pasted token plus server URL sends exactly what 1.0.x sent (no per-restart client id the server would list as a new device)."""
+        _, get = fetch(make_plugin())
+        assert get.call_args.kwargs["headers"] == {
+            "X-Plex-Token": "test_token",
+            "X-Plex-Product": "FiestaBoard",
+            "Accept": "application/json",
+        }
+
     def test_env_vars_used_when_settings_empty(self, monkeypatch):
         monkeypatch.setenv("PLEX_URL", "http://plex.local:32400")
         monkeypatch.setenv("PLEX_TOKEN", "env_token")
