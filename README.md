@@ -4,7 +4,7 @@ Show what's playing on your Plex Media Server — movies, TV episodes and music 
 
 ![Plex Now Playing Display](./docs/board-display.png)
 
-**→ [Setup Guide](./docs/SETUP.md)** - Finding your Plex token and configuration
+**→ [Setup Guide](./docs/SETUP.md)** - Signing in with Plex (or pasting a token) and configuration
 
 ## Overview
 
@@ -95,14 +95,21 @@ Center all three lines:
 
 | Setting | Type | Required | Default | Description |
 |---------|------|----------|---------|-------------|
-| `server_url` | string | Yes | - | Plex server address, e.g. `http://192.168.1.100:32400` |
-| `token` | string | Yes | - | Your X-Plex-Token |
+| `server_url` | string | No | - | Plex server address, e.g. `http://192.168.1.100:32400`. Empty: found through your Plex account |
+| `token` | string | No | - | An X-Plex-Token to use instead of **Sign in with Plex**. When set, it wins |
+| `server_name` | string | No | - | Which server to use when your account has several and `server_url` is empty |
 | `plex_user` | string | No | - | Only show this Plex user's streams |
 | `show_accents` | boolean | No | `true` | Frame the year or season/episode line with yellow tiles |
 | `refresh_seconds` | integer | No | `30` | How often to ask Plex what's playing (10-600) |
 | `enabled` | boolean | No | `false` | Enable the plugin |
 
 `PLEX_URL` and `PLEX_TOKEN` environment variables can be used instead of the UI settings.
+
+### Sign in with Plex
+
+Requires FiestaBoard 9.11.0 or later. Click **Sign in with Plex** in the plugin's settings and approve FiestaBoard on Plex's page; nothing to copy. A pasted token (or `PLEX_TOKEN`) still works and takes priority over the sign-in. If Plex stops accepting the sign-in, the settings ask you to sign in again.
+
+With no `server_url`, the plugin asks plex.tv for the servers on your account (`/api/v2/resources`), prefers one you own, and tries its home-network address first, then its remote address, then Plex's relay. This works with a pasted token too.
 
 ## Features
 
@@ -113,7 +120,8 @@ Center all three lines:
 - Filter to a single Plex user
 - Every active stream available as `sessions`, plus a stream count
 - Playback state color-coded: green playing, yellow paused, orange buffering
-- Talks to your server directly on your network; no Plex account API or cloud relay
+- Sign in with Plex, or paste a token
+- Finds your server through your Plex account, or talks to the address you give it directly
 
 ## Author
 

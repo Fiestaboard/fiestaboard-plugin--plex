@@ -115,12 +115,11 @@ class TestValidateConfig:
     def test_valid_config(self):
         assert make_plugin().validate_config({"server_url": "http://plex.local:32400", "token": "t"}) == []
 
-    def test_missing_url_and_token(self, monkeypatch):
+    def test_url_and_token_optional(self, monkeypatch):
+        """Sign in with Plex supplies the token, and plex.tv finds the server."""
         monkeypatch.delenv("PLEX_URL", raising=False)
         monkeypatch.delenv("PLEX_TOKEN", raising=False)
-        errors = make_plugin().validate_config({})
-        assert "Plex server URL is required" in errors
-        assert "Plex token is required" in errors
+        assert make_plugin().validate_config({}) == []
 
     def test_url_without_scheme(self):
         errors = make_plugin().validate_config({"server_url": "192.168.1.100:32400", "token": "t"})
@@ -363,9 +362,10 @@ class TestFetchData:
         monkeypatch.delenv("PLEX_TOKEN", raising=False)
         plugin = PlexPlugin(manifest=MANIFEST)
         plugin.config = {}
+        plugin.get_oauth_token = lambda: None
         result = plugin.fetch_data()
         assert result.available is False
-        assert result.error == "Plex server URL or token not configured"
+        assert result.error == "Sign in with Plex, or paste a Plex token, in the plugin settings"
 
     def test_request(self):
         plugin = make_plugin(server_url="http://192.168.1.100:32400/")
@@ -375,6 +375,15 @@ class TestFetchData:
         assert kwargs["headers"]["X-Plex-Token"] == "test_token"
         assert kwargs["headers"]["Accept"] == "application/json"
         assert kwargs["timeout"] == 10
+
+    def test_server_request_headers_unchanged(self):
+        """A pasted token plus server URL sends exactly what 1.0.x sent (no per-restart client id the server would list as a new device)."""
+        _, get = fetch(make_plugin())
+        assert get.call_args.kwargs["headers"] == {
+            "X-Plex-Token": "test_token",
+            "X-Plex-Product": "FiestaBoard",
+            "Accept": "application/json",
+        }
 
     def test_env_vars_used_when_settings_empty(self, monkeypatch):
         monkeypatch.setenv("PLEX_URL", "http://plex.local:32400")
@@ -518,7 +527,10 @@ def render(template_entry, data, board):
     registry = Mock(get_manifest=Mock(return_value=SimpleNamespace(color_rules_schema=MANIFEST["color_rules_schema"])))
     with patch("src.templates.engine.get_plugin_registry", return_value=registry):
         engine = TemplateEngine()
-    engine._config_manager = Mock(get_color_rules=Mock(return_value=None))
+    engine._config_manager = Mock(
+        get_color_rules=Mock(return_value=None),  # cores before 9.10
+        get_effective_color_rules=Mock(return_value=None),  # 9.10+: per-instance rules
+    )
     notes_wide = board.cols // 15 if board.device_type == "note_array" else 1
     notes_tall = board.rows // 3 if board.device_type == "note_array" else 1
     text = engine.render_lines(
