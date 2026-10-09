@@ -18,7 +18,7 @@ Connect FiestaBoard to your Plex Media Server so your board shows what's playing
 
 2. **Sign in** — In the plugin's settings, click **Sign in with Plex**. Plex's sign-in page opens in a new tab; sign in and approve **FiestaBoard**. The settings show you are connected once Plex confirms, usually within a few seconds.
 
-3. **Server (usually nothing to do)** — Leave **Plex Server URL** empty and the plugin finds your server through your Plex account, trying its home-network address first. If your account can reach several servers, enter the one you want in **Plex Server Name**. If the board cannot reach the server that way, enter its address in **Plex Server URL** (for example `http://192.168.1.100:32400`). Optionally set a **Plex User** to only show that person's streams.
+3. **Server (usually nothing to do)** — Leave **Plex Server URL** empty and the plugin finds your server through your Plex account, trying its home-network address first. If your account can reach several servers, enter the one you want in **Plex Server Name**. If the board cannot reach the server that way, enter its address in **Plex Server URL** (for example `http://192.168.1.100:32400`). Optionally set **Plex User** to only show some people's streams, or **Plex Player** to only show what's playing on some devices (for example the TV the board hangs over, whoever is watching).
 
 4. **Template** — Create a page from the plugin's demo, or add the display lines to your own page:
 
@@ -76,7 +76,8 @@ This is how the plugin worked before 1.1.0, and it still does. A pasted token is
 | Plex Server URL | No | - | Your server's address, including the port. Empty: found through your Plex account |
 | Plex Token | No | - | An X-Plex-Token, used instead of Sign in with Plex when set |
 | Plex Server Name | No | - | Which server to use when the URL is empty and your account has several |
-| Plex User | No | - | Only show streams from this Plex user (case-insensitive) |
+| Plex User | No | - | Only show streams from these Plex users, separated by commas (case-insensitive) |
+| Plex Player | No | - | Only show streams on these devices, separated by commas (case-insensitive), e.g. `Living Room TV` |
 | Plex yellow accents | No | On | Frame the year or season/episode line with two yellow tiles on each side |
 | Hold Between Episodes | No | 60 seconds | After playback stops, keep showing it this long before "Nothing playing" (0-600 seconds, 0 turns it off) |
 | Refresh Interval | No | 30 seconds | How often to check Plex (10-600 seconds) |
@@ -121,6 +122,7 @@ This is how the plugin worked before 1.1.0, and it still does. A pasted token is
 ### The board says "Nothing playing" while something is playing
 
 - If **Plex User** is set, it must match the name Plex shows for that user.
+- If **Plex Player** is set, it must match the device name Plex shows. Put `{{plex.player}}` on a page with Plex Player empty to see it.
 - The board updates on the refresh interval, so wait up to 30 seconds.
 
 ### The board goes blank between episodes
