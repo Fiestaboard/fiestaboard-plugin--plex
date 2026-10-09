@@ -101,7 +101,7 @@ class TestManifest:
 
     def test_existing_settings_keys_kept_and_optional(self):
         props = MANIFEST["settings_schema"]["properties"]
-        for key in ("server_url", "token", "plex_user", "show_accents", "refresh_seconds"):
+        for key in ("server_url", "token", "plex_user", "plex_player", "show_accents", "refresh_seconds"):
             assert key in props
         assert "token" not in MANIFEST["settings_schema"].get("required", [])
         assert "server_url" not in MANIFEST["settings_schema"].get("required", [])

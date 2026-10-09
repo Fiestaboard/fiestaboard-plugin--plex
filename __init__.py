@@ -208,6 +208,11 @@ def _extra_lines(
     return extra
 
 
+def name_set(value: Any) -> set:
+    """A comma-separated settings value as a set of lower-cased names; empty means no filter."""
+    return {name.strip().lower() for name in str(value or "").split(",") if name.strip()}
+
+
 def pick_primary(sessions: List[Dict[str, Any]]) -> Dict[str, Any]:
     """The session to feature: playing beats buffering beats paused, then Plex's order."""
     return min(sessions, key=lambda s: STATE_PRIORITY.index(s["state"]))
@@ -414,9 +419,10 @@ class PlexPlugin(PluginBase):
         # A session with no title is one Plex has not loaded yet: nothing to show
         sessions = [parse_session(item) for item in items if item.get("title")]
 
-        plex_user = (self.config.get("plex_user") or "").strip().lower()
-        if plex_user:
-            sessions = [s for s in sessions if s["user"].lower() == plex_user]
+        for field, setting in (("user", "plex_user"), ("player", "plex_player")):
+            wanted = name_set(self.config.get(setting))
+            if wanted:
+                sessions = [s for s in sessions if s[field].lower() in wanted]
         sessions = self._hold_through_gaps(sessions)
 
         primary = pick_primary(sessions) if sessions else None

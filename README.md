@@ -98,7 +98,8 @@ Center all three lines:
 | `server_url` | string | No | - | Plex server address, e.g. `http://192.168.1.100:32400`. Empty: found through your Plex account |
 | `token` | string | No | - | An X-Plex-Token to use instead of **Sign in with Plex**. When set, it wins |
 | `server_name` | string | No | - | Which server to use when your account has several and `server_url` is empty |
-| `plex_user` | string | No | - | Only show this Plex user's streams |
+| `plex_user` | string | No | - | Only show these Plex users' streams (comma-separated) |
+| `plex_player` | string | No | - | Only show streams on these devices (comma-separated), e.g. `Living Room TV` |
 | `show_accents` | boolean | No | `true` | Frame the year or season/episode line with yellow tiles |
 | `hold_seconds` | integer | No | `60` | After playback stops, keep showing it this long before "Nothing playing" (0-600, 0 turns it off) |
 | `refresh_seconds` | integer | No | `30` | How often to ask Plex what's playing (10-600) |
@@ -118,7 +119,7 @@ With no `server_url`, the plugin asks plex.tv for the servers on your account (`
 - Display lines that adapt to the board's width: Note, Flagship, and any Note Array
 - Long titles wrap across two lines; the rest of the layout moves to make room
 - Optional Plex yellow accent tiles
-- Filter to a single Plex user
+- Filter to some Plex users, some devices, or both (e.g. whatever is playing on the TV the board hangs over)
 - Every active stream available as `sessions`, plus a stream count
 - No blank board between episodes: the last stream stays up through Plex's Up Next countdown
 - Playback state color-coded: green playing, yellow paused, orange buffering

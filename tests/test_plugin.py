@@ -454,6 +454,44 @@ class TestFetchData:
         assert result.data["state"] == "Idle"
         assert result.data["stream_count"] == 0
 
+    def test_user_filter_accepts_several_users(self):
+        kim = episode_item(User={"title": "Kim"})
+        result, _ = fetch(make_plugin(plex_user="Sam, kim"), movie_item(), track_item(), kim)
+        assert sorted(s["user"] for s in result.data["sessions"]) == ["Kim", "Sam"]
+
+    def test_user_filter_ignores_empty_entries(self):
+        result, _ = fetch(make_plugin(plex_user=" , "), movie_item())
+        assert result.data["stream_count"] == 1
+
+    def test_player_filter_shows_only_that_device(self):
+        bedroom = episode_item(User={"title": "Kim"}, Player={"title": "Bedroom", "state": "playing"})
+        result, _ = fetch(make_plugin(plex_player="living room tv"), bedroom, movie_item())
+        assert result.data["title"] == "Interstellar"
+        assert result.data["stream_count"] == 1
+
+    def test_player_filter_follows_whoever_uses_the_device(self):
+        kim = episode_item(User={"title": "Kim"})
+        result, _ = fetch(make_plugin(plex_player="Living Room TV"), kim)
+        assert result.data["user"] == "Kim"
+
+    def test_player_filter_accepts_several_devices(self):
+        kitchen = track_item(Player={"title": "Kitchen", "state": "playing"})
+        bedroom = episode_item(Player={"title": "Bedroom", "state": "playing"})
+        result, _ = fetch(make_plugin(plex_player="Kitchen, Living Room TV"), kitchen, bedroom, movie_item())
+        assert sorted(s["player"] for s in result.data["sessions"]) == ["Kitchen", "Living Room TV"]
+
+    def test_player_filter_without_match_is_idle(self):
+        result, _ = fetch(make_plugin(plex_player="Bedroom"), movie_item())
+        assert result.data["state"] == "Idle"
+
+    def test_user_and_player_filters_both_apply(self):
+        kim_on_tv = episode_item(User={"title": "Kim"})
+        alex_in_bedroom = track_item(User={"title": "Alex"}, Player={"title": "Bedroom", "state": "playing"})
+        result, _ = fetch(
+            make_plugin(plex_user="Alex", plex_player="Living Room TV"), kim_on_tv, alex_in_bedroom, movie_item()
+        )
+        assert [(s["user"], s["player"]) for s in result.data["sessions"]] == [("Alex", "Living Room TV")]
+
     def test_show_accents_setting(self):
         result, _ = fetch(make_plugin(show_accents=False), episode_item(), board=NOTE)
         assert result.data["line_2"] == "S05 E14"
