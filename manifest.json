@@ -1,7 +1,7 @@
 {
   "id": "plex",
   "name": "Plex Now Playing",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "Show what's playing on your Plex Media Server: movies, TV episodes and music, laid out to fit any board",
   "author": "FiestaBoard Team",
   "repository": "https://github.com/Fiestaboard/fiestaboard-plugin--plex",
@@ -43,6 +43,14 @@
         "title": "Plex yellow accents",
         "description": "Frame the year or season/episode line with two yellow tiles on each side",
         "default": true
+      },
+      "hold_seconds": {
+        "type": "integer",
+        "title": "Hold Between Episodes (seconds)",
+        "description": "When playback stops, keep showing it this long before switching to Nothing playing, so the board does not go blank during Plex's countdown to the next episode. 0 turns this off.",
+        "default": 60,
+        "minimum": 0,
+        "maximum": 600
       },
       "refresh_seconds": {
         "type": "integer",

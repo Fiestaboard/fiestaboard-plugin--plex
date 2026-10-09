@@ -130,6 +130,13 @@ class TestValidateConfig:
         monkeypatch.setenv("PLEX_TOKEN", "env_token")
         assert make_plugin().validate_config({}) == []
 
+    def test_hold_out_of_range(self):
+        errors = make_plugin().validate_config({"hold_seconds": 601})
+        assert errors == ["Hold must be between 0 and 600 seconds"]
+
+    def test_hold_not_a_number(self):
+        assert make_plugin().validate_config({"hold_seconds": "soon"}) == ["Hold must be between 0 and 600 seconds"]
+
     def test_refresh_below_minimum(self):
         errors = make_plugin().validate_config(
             {"server_url": "http://plex.local:32400", "token": "t", "refresh_seconds": 5}
@@ -509,6 +516,91 @@ class TestFetchData:
             result = make_plugin().fetch_data()
         assert result.available is False
         assert result.error == "Expecting value"
+
+
+class TestHoldBetweenEpisodes:
+    """Plex drops the session when an episode ends and starts the next after its Up Next countdown."""
+
+    @staticmethod
+    def poll(plugin, *items, at, board=None):
+        """One uncached fetch at monotonic time *at*."""
+        plugin.clear_cache()
+        with patch("plugins.plex.requests.get", return_value=sessions_response(*items)), patch(
+            "plugins.plex.time.monotonic", return_value=at
+        ):
+            return plugin.get_data(board)
+
+    def test_last_stream_is_held_through_a_gap(self):
+        plugin = make_plugin()
+        self.poll(plugin, episode_item(), at=1000)
+        result = self.poll(plugin, at=1030)
+        assert result.data["title"] == "Ozymandias"
+        assert result.data["state"] == "Playing"
+        assert result.data["stream_count"] == 1
+
+    def test_next_episode_replaces_the_held_one(self):
+        plugin = make_plugin()
+        self.poll(plugin, episode_item(), at=1000)
+        self.poll(plugin, at=1030)
+        result = self.poll(plugin, episode_item(index=15, title="Granite State"), at=1060)
+        assert result.data["title"] == "Granite State"
+
+    def test_idle_once_the_hold_runs_out(self):
+        plugin = make_plugin()
+        self.poll(plugin, episode_item(), at=1000)
+        self.poll(plugin, at=1030)
+        result = self.poll(plugin, at=1090)
+        assert result.data["state"] == "Idle"
+        assert result.data["line_2"] == "Nothing playing"
+
+    def test_hold_counts_from_the_first_empty_poll(self):
+        plugin = make_plugin(hold_seconds=20)
+        self.poll(plugin, episode_item(), at=1000)
+        assert self.poll(plugin, at=1100).data["title"] == "Ozymandias"
+        assert self.poll(plugin, at=1119).data["title"] == "Ozymandias"
+        assert self.poll(plugin, at=1120).data["state"] == "Idle"
+
+    def test_hold_restarts_after_playback_resumes(self):
+        plugin = make_plugin(hold_seconds=20)
+        self.poll(plugin, episode_item(), at=1000)
+        self.poll(plugin, at=1010)
+        self.poll(plugin, episode_item(index=15, title="Granite State"), at=1030)
+        result = self.poll(plugin, at=1045)
+        assert result.data["title"] == "Granite State"
+
+    def test_idle_stays_idle_after_the_hold(self):
+        plugin = make_plugin(hold_seconds=20)
+        self.poll(plugin, episode_item(), at=1000)
+        self.poll(plugin, at=1010)
+        self.poll(plugin, at=1030)
+        assert self.poll(plugin, at=1031).data["state"] == "Idle"
+
+    def test_zero_turns_the_hold_off(self):
+        plugin = make_plugin(hold_seconds=0)
+        self.poll(plugin, episode_item(), at=1000)
+        assert self.poll(plugin, at=1001).data["state"] == "Idle"
+
+    def test_nothing_to_hold_on_first_poll(self):
+        assert self.poll(make_plugin(), at=1000).data["state"] == "Idle"
+
+    def test_held_stream_is_laid_out_for_each_board(self):
+        plugin = make_plugin()
+        item = episode_item(grandparentTitle="The Marvelous Mrs. Maisel", parentIndex=1, index=1, title="Pilot")
+        self.poll(plugin, item, at=1000, board=NOTE)
+        result = self.poll(plugin, at=1030, board=NOTE_ARRAY_2_WIDE)
+        assert result.data["line_1"] == "The Marvelous Mrs. Maisel"
+
+    def test_stream_without_a_title_is_skipped(self):
+        """A session Plex has not loaded the metadata for yet has nothing to show."""
+        result = self.poll(make_plugin(), episode_item(title=""), at=1000)
+        assert result.data["state"] == "Idle"
+        assert result.data["stream_count"] == 0
+
+    def test_stream_without_a_title_does_not_replace_the_held_one(self):
+        plugin = make_plugin()
+        self.poll(plugin, episode_item(), at=1000)
+        result = self.poll(plugin, episode_item(index=15, title=None), at=1030)
+        assert result.data["title"] == "Ozymandias"
 
 
 class TestManifestContract:

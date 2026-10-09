@@ -11,6 +11,7 @@ import logging
 import math
 import os
 import textwrap
+import time
 import uuid
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -25,12 +26,17 @@ DEFAULT_ROWS = 6
 ACCENT = "{65}{65}"  # two yellow tiles, Plex's brand colour
 REQUEST_TIMEOUT = 10
 PROBE_TIMEOUT = 3
+# Plex drops a session the moment an episode ends and only starts the next one after its
+# Up Next countdown; holding the last stream this long keeps the board from blanking out.
+DEFAULT_HOLD_SECONDS = 60
+MAX_HOLD_SECONDS = 600
 PLEX_RESOURCES_URL = "https://plex.tv/api/v2/resources"
 
 NEEDS_TOKEN = "Sign in with Plex, or paste a Plex token, in the plugin settings"
 SIGN_IN_REJECTED = "Plex stopped accepting the sign-in. Sign in with Plex again."
 TOKEN_REJECTED = "Plex rejected the token (401 Unauthorized)"
 SET_SERVER_URL = "set the Plex Server URL in the plugin settings"
+BAD_HOLD = f"Hold must be between 0 and {MAX_HOLD_SECONDS} seconds"
 
 STATE_LABELS = {
     "playing": "Playing",
@@ -242,6 +248,9 @@ class PlexPlugin(PluginBase):
         self._client_identifier = str(uuid.uuid4())
         # ((token, server_name), server_url, server_token) from the last plex.tv lookup
         self._discovered: Optional[Tuple[Tuple[str, str], str, str]] = None
+        # The streams last seen, and when Plex first reported none since then
+        self._last_sessions: List[Dict[str, Any]] = []
+        self._idle_since: Optional[float] = None
 
     @property
     def plugin_id(self) -> str:
@@ -263,8 +272,23 @@ class PlexPlugin(PluginBase):
         if server_url and not server_url.startswith(("http://", "https://")):
             errors.append("Plex server URL must start with http:// or https://")
 
+        hold = config.get("hold_seconds", DEFAULT_HOLD_SECONDS)
+        if isinstance(hold, bool) or not isinstance(hold, (int, float)) or not 0 <= hold <= MAX_HOLD_SECONDS:
+            errors.append(BAD_HOLD)
+
         errors.extend(self._validate_refresh_seconds(config))
         return errors
+
+    def _hold_through_gaps(self, sessions: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """*sessions*, or the last streams seen while Plex has reported none for under the hold time."""
+        if sessions:
+            self._last_sessions, self._idle_since = sessions, None
+            return sessions
+        now = time.monotonic()
+        if self._idle_since is None:
+            self._idle_since = now
+        hold = self.config.get("hold_seconds", DEFAULT_HOLD_SECONDS)
+        return self._last_sessions if now - self._idle_since < hold else sessions
 
     def _signed_in_token(self) -> str:
         """The token from Sign in with Plex, or "" (not signed in, or a core without sign-in)."""
@@ -387,11 +411,13 @@ class PlexPlugin(PluginBase):
             logger.warning("Plex request failed: %s", e)
             return PluginResult(available=False, error=str(e))
 
-        sessions = [parse_session(item) for item in items]
+        # A session with no title is one Plex has not loaded yet: nothing to show
+        sessions = [parse_session(item) for item in items if item.get("title")]
 
         plex_user = (self.config.get("plex_user") or "").strip().lower()
         if plex_user:
             sessions = [s for s in sessions if s["user"].lower() == plex_user]
+        sessions = self._hold_through_gaps(sessions)
 
         primary = pick_primary(sessions) if sessions else None
         others = [s for s in sessions if s is not primary]
