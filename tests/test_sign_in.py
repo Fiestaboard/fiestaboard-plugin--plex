@@ -106,8 +106,10 @@ class TestManifest:
         assert "token" not in MANIFEST["settings_schema"].get("required", [])
         assert "server_url" not in MANIFEST["settings_schema"].get("required", [])
 
-    def test_minor_version_bump(self):
-        assert MANIFEST["version"] == "1.1.0"
+    def test_sign_in_is_not_a_breaking_release(self):
+        """Sign in with Plex shipped in 1.1.0 without breaking 1.0.x settings."""
+        major, minor, _ = (int(part) for part in MANIFEST["version"].split("."))
+        assert (major, minor) >= (1, 1) and major == 1
 
 
 class TestTokenChoice:

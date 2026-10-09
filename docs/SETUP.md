@@ -78,6 +78,7 @@ This is how the plugin worked before 1.1.0, and it still does. A pasted token is
 | Plex Server Name | No | - | Which server to use when the URL is empty and your account has several |
 | Plex User | No | - | Only show streams from this Plex user (case-insensitive) |
 | Plex yellow accents | No | On | Frame the year or season/episode line with two yellow tiles on each side |
+| Hold Between Episodes | No | 60 seconds | After playback stops, keep showing it this long before "Nothing playing" (0-600 seconds, 0 turns it off) |
 | Refresh Interval | No | 30 seconds | How often to check Plex (10-600 seconds) |
 
 **Environment variables** (alternative to the UI settings):
@@ -121,6 +122,15 @@ This is how the plugin worked before 1.1.0, and it still does. A pasted token is
 
 - If **Plex User** is set, it must match the name Plex shows for that user.
 - The board updates on the refresh interval, so wait up to 30 seconds.
+
+### The board goes blank between episodes
+
+- When an episode ends, Plex stops the stream during its Up Next countdown and starts a new one for the next episode. The board keeps showing the last stream for **Hold Between Episodes** (60 seconds by default). If the countdown or the next episode's start takes longer than that, raise it.
+- You don't need a short refresh interval for this. The default 30 seconds is fine.
+
+### The board keeps showing something after I stop watching
+
+- That is the **Hold Between Episodes** time. Lower it, or set it to 0 to switch to "Nothing playing" on the next refresh.
 
 ### Titles are cut off
 
